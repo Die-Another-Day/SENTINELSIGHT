@@ -3,7 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, HttpUrl
 from typing import Optional, List
-import uvicorn
 import os
 from loguru import logger
 
@@ -36,15 +35,6 @@ app.add_middleware(
 )
 
 # =====================================================
-# Initialize Core Components
-# =====================================================
-detector = ImageDetector()
-protector = ImageProtector()
-file_handler = FileHandler()
-scanner = FolderScanner()
-dir_browser = DirectoryBrowser()
-
-# =====================================================
 # Logging
 # =====================================================
 logger.add(
@@ -53,6 +43,36 @@ logger.add(
     level=settings.LOG_LEVEL,
     format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}"
 )
+
+# =====================================================
+# Core Utilities (LIGHTWEIGHT – SAFE TO INIT)
+# =====================================================
+file_handler = FileHandler()
+scanner = FolderScanner()
+dir_browser = DirectoryBrowser()
+
+# =====================================================
+# Lazy-Loaded Heavy Components (FIX FOR RENDER)
+# =====================================================
+_detector: ImageDetector | None = None
+_protector: ImageProtector | None = None
+
+
+def get_detector() -> ImageDetector:
+    global _detector
+    if _detector is None:
+        logger.info("[SentinelSight] Lazy-loading ImageDetector")
+        _detector = ImageDetector()
+    return _detector
+
+
+def get_protector() -> ImageProtector:
+    global _protector
+    if _protector is None:
+        logger.info("[SentinelSight] Lazy-loading ImageProtector")
+        _protector = ImageProtector()
+    return _protector
+
 
 # =====================================================
 # Request / Response Models
@@ -91,6 +111,7 @@ class DetectionResult(BaseModel):
 # =====================================================
 @app.get("/api/health")
 async def health_check():
+    detector = get_detector()
     return {
         "status": "healthy",
         "project": "SentinelSight",
@@ -115,7 +136,7 @@ async def analyze_image(
 
         logger.info(f"[SentinelSight] Analyzing image: {file.filename}")
 
-        result = await detector.analyze_image(
+        result = await get_detector().analyze_image(
             file_path,
             use_external_apis=use_external_apis
         )
@@ -136,7 +157,7 @@ async def analyze_url(request: AnalyzeURLRequest):
     try:
         file_path = await file_handler.download_image(str(request.url))
 
-        result = await detector.analyze_image(
+        result = await get_detector().analyze_image(
             file_path,
             use_external_apis=request.use_external_apis
         )
@@ -186,7 +207,7 @@ async def protect_image(request: ProtectImageRequest):
     if not os.path.exists(request.image_path):
         raise HTTPException(status_code=400, detail="Image file not found")
 
-    protected_path = await protector.protect_image(
+    protected_path = await get_protector().protect_image(
         request.image_path,
         strength=request.strength,
         method=request.method
@@ -207,7 +228,7 @@ async def upload_and_protect(
 ):
     file_path = await file_handler.save_upload(file)
 
-    protected_path = await protector.protect_image(
+    protected_path = await get_protector().protect_image(
         file_path,
         strength=strength,
         method=method
@@ -233,7 +254,7 @@ async def batch_analyze(
     for file in files:
         if file_handler.validate_file(file.filename):
             file_path = await file_handler.save_upload(file)
-            result = await detector.analyze_image(file_path, use_external_apis)
+            result = await get_detector().analyze_image(file_path, use_external_apis)
             results.append(result)
             await file_handler.cleanup_file(file_path)
 
@@ -260,15 +281,3 @@ async def browse_directory(path: Optional[str] = None):
 @app.get("/api/common-locations")
 async def get_common_locations():
     return {"locations": dir_browser.get_common_locations()}
-
-
-# =====================================================
-# Render Entry Point
-# =====================================================
-if __name__ == "__main__":
-    uvicorn.run(
-        app,
-        host="0.0.0.0",
-        port=int(os.environ.get("PORT", settings.API_PORT)),
-        workers=1
-    )
