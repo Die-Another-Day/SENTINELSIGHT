@@ -1,0 +1,53 @@
+# Core Framework
+fastapi
+uvicorn[standard]
+python-multipart
+aiofiles
+pydantic
+pydantic-settings
+
+# Machine Learning & Computer Vision
+torch
+torchvision
+tensorflow
+opencv-python
+pillow
+numpy
+scikit-learn
+
+# Detection Models
+nudenet
+transformers
+clip-interrogator
+timm
+
+# Deepfake Detection
+facenet-pytorch
+insightface
+onnxruntime
+
+# Image Perturbation / Protection
+adversarial-robustness-toolbox
+foolbox
+
+# API Integrations
+openai
+google-generativeai
+anthropic
+httpx
+requests
+
+# Database & Caching
+redis
+sqlalchemy
+
+# Utilities
+python-dotenv
+python-magic
+tqdm
+psutil
+cryptography
+
+# Logging & Monitoring
+loguru
+prometheus-client
